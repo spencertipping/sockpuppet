@@ -632,7 +632,12 @@ sub do_io
   my $server_e = vec $efds, $$self{server_fd}, 1;
 
   # If we have errors, close the connection and auto-implode.
-  return $self->close if $client_e || $server_e;
+  if ($client_e || $server_e)
+  {
+    warn "server socket in error state" if $server_e;
+    warn "client socket in error state" if $client_e;
+    return $self->close;
+  }
 
   # First handle downlink. We don't parse this here, but it does have a
   # follower.
@@ -652,7 +657,7 @@ sub do_io
     # write we get from select(). We might block if we forced everything using
     # sockpuppet::fd_write.
     my $n = syswrite($$self{client_sock}, $$self{downlink_buf})
-         // $self->implode($!);
+         // $self->implode("downlink error: $!");
     $$self{downlink_buf} = substr $$self{downlink_buf}, $n;
   }
 
@@ -677,7 +682,7 @@ sub do_io
   if ($$self{http_rewritten} && $server_w)
   {
     my $n = syswrite($$self{server_sock}, $$self{uplink_buf})
-         // $self->implode($!);
+         // $self->implode("uplink error: $!");
     $$self{up_follower}->data(substr $$self{uplink_buf}, $upbuf_size);
     $$self{uplink_buf} = substr $$self{uplink_buf}, $n;
   }
